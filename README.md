@@ -1,4 +1,4 @@
-# physioapp
+# app
 
 A new Flutter project.
 
