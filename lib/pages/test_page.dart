@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class MedicalAppointmentMapView extends StatefulWidget {
   const MedicalAppointmentMapView({Key? key}) : super(key: key);
@@ -9,8 +11,7 @@ class MedicalAppointmentMapView extends StatefulWidget {
 }
 
 class _MedicalAppointmentMapViewState extends State<MedicalAppointmentMapView> {
-  GoogleMapController? mapController;
-  Set<Marker> markers = <Marker>{};
+  final MapController mapController = MapController();
   
   // Sample medical appointment locations
   final List<MedicalAppointment> appointments = [
@@ -18,7 +19,7 @@ class _MedicalAppointmentMapViewState extends State<MedicalAppointmentMapView> {
       id: '1',
       doctorName: 'Dr. Silva',
       specialty: 'Cardiologista',
-      clinicName: 'Cinica do coração',
+      clinicName: 'Clinica do Coração',
       address: 'Rua das Flores, 123, Mogi das Cruzes',
       dateTime: DateTime.now().add(Duration(days: 1)),
       location: LatLng(-23.522, -46.186), // Mogi das Cruzes coordinates
@@ -27,7 +28,7 @@ class _MedicalAppointmentMapViewState extends State<MedicalAppointmentMapView> {
       id: '2',
       doctorName: 'Dr. Santos',
       specialty: 'Dermatologista',
-      clinicName: 'Clinica da pele',
+      clinicName: 'Clinica da Pele',
       address: 'Av. Voluntários da Pátria, 456, Mogi das Cruzes',
       dateTime: DateTime.now().add(Duration(days: 3)),
       location: LatLng(-23.520, -46.188),
@@ -35,48 +36,72 @@ class _MedicalAppointmentMapViewState extends State<MedicalAppointmentMapView> {
     MedicalAppointment(
       id: '3',
       doctorName: 'Dr. Oliveira',
-      specialty: 'Pediatra',
-      clinicName: 'Clinica da criança',
+      specialty: 'Pediatrica',
+      clinicName: 'Clinica das Crianças',
       address: 'Rua do Centro, 789, Mogi das Cruzes',
       dateTime: DateTime.now().add(Duration(days: 7)),
       location: LatLng(-23.524, -46.184),
     ),
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _createMarkers();
-  }
+  MedicalAppointment? selectedAppointment;
 
-  void _createMarkers() {
-    for (var appointment in appointments) {
-      markers.add(
-        Marker(
-          markerId: MarkerId(appointment.id),
-          position: appointment.location,
-          infoWindow: InfoWindow(
-            title: appointment.clinicName,
-            snippet: '${appointment.doctorName} - ${appointment.specialty}',
-            onTap: () => _showAppointmentDetails(appointment),
+  List<Marker> _buildMarkers() {
+    return appointments.map((appointment) {
+      return Marker(
+        point: appointment.location,
+        width: 50,
+        height: 50,
+        child: GestureDetector(
+          onTap: () => _selectAppointment(appointment),
+          child: Container(
+            decoration: BoxDecoration(
+              color: selectedAppointment?.id == appointment.id 
+                ? Colors.red[700] 
+                : Colors.red,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              Icons.local_hospital,
+              color: Colors.white,
+              size: 24,
+            ),
           ),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          onTap: () => _showAppointmentDetails(appointment),
         ),
       );
-    }
+    }).toList();
   }
 
-  void _onMapCreated(GoogleMapController controller) {
-    mapController = controller;
+  void _selectAppointment(MedicalAppointment appointment) {
+    setState(() {
+      selectedAppointment = appointment;
+    });
+    
+    // Center map on selected appointment
+    mapController.move(appointment.location, 16.0);
+    
+    // Show appointment details
+    _showAppointmentDetails(appointment);
   }
 
   void _showAppointmentDetails(MedicalAppointment appointment) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (BuildContext context) {
         return Container(
           padding: EdgeInsets.all(16),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,15 +110,21 @@ class _MedicalAppointmentMapViewState extends State<MedicalAppointmentMapView> {
                 children: [
                   Icon(Icons.local_hospital, color: Colors.red, size: 24),
                   SizedBox(width: 8),
-                  Text(
-                    appointment.clinicName,
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  Expanded(
+                    child: Text(
+                      appointment.clinicName,
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
               SizedBox(height: 16),
-              _buildDetailRow(Icons.person, 'Medico', appointment.doctorName),
-              _buildDetailRow(Icons.medical_services, 'Especialidade', appointment.specialty),
+              _buildDetailRow(Icons.person, 'Médico', appointment.doctorName),
+              _buildDetailRow(Icons.medical_services, 'Especialista', appointment.specialty),
               _buildDetailRow(Icons.location_on, 'Endereço', appointment.address),
               _buildDetailRow(Icons.calendar_today, 'Data', 
                 '${appointment.dateTime.day}/${appointment.dateTime.month}/${appointment.dateTime.year}'),
@@ -104,9 +135,9 @@ class _MedicalAppointmentMapViewState extends State<MedicalAppointmentMapView> {
                 children: [
                   Expanded(
                     child: ElevatedButton.icon(
-                      onPressed: () => _getDirections(appointment),
+                      onPressed: () => _openInMaps(appointment),
                       icon: Icon(Icons.directions),
-                      label: Text('Ver Direção'),
+                      label: Text('Abrir no Mapas'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
@@ -116,9 +147,9 @@ class _MedicalAppointmentMapViewState extends State<MedicalAppointmentMapView> {
                   SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(context),
-                      icon: Icon(Icons.close),
-                      label: Text('Fechar'),
+                      onPressed: () => _centerOnAppointment(appointment),
+                      icon: Icon(Icons.center_focus_strong),
+                      label: Text('Centralizar'),
                     ),
                   ),
                 ],
@@ -150,40 +181,131 @@ class _MedicalAppointmentMapViewState extends State<MedicalAppointmentMapView> {
     );
   }
 
-  void _getDirections(MedicalAppointment appointment) {
-    // Here you would typically integrate with a navigation app
-    // or implement turn-by-turn directions
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Carregando direção para ${appointment.clinicName}'),
-        backgroundColor: Colors.green,
-      ),
-    );
+  void _openInMaps(MedicalAppointment appointment) async {
+    final url = 'https://www.google.com/maps/search/?api=1&query=${appointment.location.latitude},${appointment.location.longitude}';
+    
+    try {
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        _showSnackBar('Não foi possivél abrir o Mapa');
+      }
+    } catch (e) {
+      _showSnackBar('error ao abrir o mapa: $e');
+    }
+  }
+
+  void _centerOnAppointment(MedicalAppointment appointment) {
+    mapController.move(appointment.location, 16.0);
     Navigator.pop(context);
   }
 
-  void _goToLocation(LatLng location) {
-    mapController?.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(
-          target: location,
-          zoom: 16.0,
-        ),
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
       ),
     );
+  }
+
+  void _showAppointmentsList() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext context) {
+        return Container(
+          padding: EdgeInsets.all(16),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Próximos Consultas',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: appointments.length,
+                  itemBuilder: (context, index) {
+                    final appointment = appointments[index];
+                    return Card(
+                      margin: EdgeInsets.symmetric(vertical: 4),
+                      child: ListTile(
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.local_hospital, color: Colors.white, size: 20),
+                        ),
+                        title: Text(appointment.clinicName),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('${appointment.doctorName} - ${appointment.specialty}'),
+                            Text(
+                              '${appointment.dateTime.day}/${appointment.dateTime.month}/${appointment.dateTime.year} at ${appointment.dateTime.hour.toString().padLeft(2, '0')}:${appointment.dateTime.minute.toString().padLeft(2, '0')}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                        trailing: Icon(Icons.arrow_forward_ios),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _selectAppointment(appointment);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _resetMapView() {
+    setState(() {
+      selectedAppointment = null;
+    });
+    mapController.move(LatLng(-23.522, -46.186), 14.0);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Consultas Medicas'),
+        title: Text('Consultas Médicas'),
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: Icon(Icons.list),
-            onPressed: () => _showAppointmentsList(),
+            onPressed: _showAppointmentsList,
+            tooltip: 'Ver lista de consultas',
+          ),
+          IconButton(
+            icon: Icon(Icons.refresh),
+            onPressed: _resetMapView,
+            tooltip: 'Resetar mapa',
           ),
         ],
       ),
@@ -198,73 +320,105 @@ class _MedicalAppointmentMapViewState extends State<MedicalAppointmentMapView> {
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Clique para ver detales da consulta',
+                    'Clique nos hospitais marcados para ver detales de consulta ',
                     style: TextStyle(color: Colors.blue[700]),
                   ),
                 ),
               ],
             ),
           ),
-          Expanded(
-            child: GoogleMap(
-              onMapCreated: _onMapCreated,
-              initialCameraPosition: CameraPosition(
-                target: LatLng(-23.522, -46.186), // Mogi das Cruzes center
-                zoom: 14.0,
+          if (selectedAppointment != null)
+            Container(
+              padding: EdgeInsets.all(12),
+              color: Colors.red[50],
+              child: Row(
+                children: [
+                  Icon(Icons.location_on, color: Colors.red),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Selecionados: ${selectedAppointment!.clinicName}',
+                      style: TextStyle(
+                        color: Colors.red[700],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => setState(() => selectedAppointment = null),
+                    child: Text('Limpar'),
+                  ),
+                ],
               ),
-              markers: markers,
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-              mapType: MapType.normal,
-              zoomControlsEnabled: true,
+            ),
+          Expanded(
+            child: FlutterMap(
+              mapController: mapController,
+              options: MapOptions(
+                initialCenter: LatLng(-23.522, -46.186), // Mogi das Cruzes center
+                initialZoom: 14.0,
+                minZoom: 10.0,
+                maxZoom: 18.0,
+                onTap: (tapPosition, point) {
+                  // Deselect appointment when tapping on empty area
+                  if (selectedAppointment != null) {
+                    setState(() {
+                      selectedAppointment = null;
+                    });
+                  }
+                },
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'com.example.medical_appointment_app',
+                  maxZoom: 19,
+                ),
+                MarkerLayer(
+                  markers: _buildMarkers(),
+                ),
+              ],
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _goToLocation(LatLng(-23.522, -46.186)),
-        child: Icon(Icons.center_focus_strong),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
-        tooltip: 'Center Map',
-      ),
-    );
-  }
-
-  void _showAppointmentsList() {
-    showModalBottomSheet(
-      context: context,
-      builder: (BuildContext context) {
-        return Container(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Próximas Consultas',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 16),
-              ...appointments.map((appointment) => Card(
-                child: ListTile(
-                  leading: Icon(Icons.local_hospital, color: Colors.red),
-                  title: Text(appointment.clinicName),
-                  subtitle: Text('${appointment.doctorName} - ${appointment.specialty}'),
-                  trailing: Text(
-                    '${appointment.dateTime.day}/${appointment.dateTime.month}',
-                    style: TextStyle(fontWeight: FontWeight.w500),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _goToLocation(appointment.location);
-                    _showAppointmentDetails(appointment);
-                  },
-                ),
-              )).toList(),
-            ],
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: "zoom_in",
+            mini: true,
+            onPressed: () {
+              final zoom = mapController.camera.zoom;
+              mapController.move(mapController.camera.center, zoom + 1);
+            },
+            child: Icon(Icons.zoom_in),
+            backgroundColor: Colors.blue[700],
+            foregroundColor: Colors.white,
           ),
-        );
-      },
+          SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: "zoom_out",
+            mini: true,
+            onPressed: () {
+              final zoom = mapController.camera.zoom;
+              mapController.move(mapController.camera.center, zoom - 1);
+            },
+            child: Icon(Icons.zoom_out),
+            backgroundColor: Colors.blue[700],
+            foregroundColor: Colors.white,
+          ),
+          SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: "center_map",
+            onPressed: _resetMapView,
+            child: Icon(Icons.center_focus_strong),
+            backgroundColor: Colors.blue[700],
+            foregroundColor: Colors.white,
+            tooltip: 'Center Map',
+          ),
+        ],
+      ),
     );
   }
 }

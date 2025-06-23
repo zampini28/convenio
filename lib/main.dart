@@ -19,28 +19,22 @@ class MainApp extends StatelessWidget {
   const MainApp({super.key});
 
   @override
-  build(final _) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    home: MedicalAppointmentMapView(),
-  );
-
-  // @override
-  // Widget build(BuildContext context) {
-  //   return MaterialApp(
-  //     debugShowCheckedModeBanner: false,
-  //     title: 'Convenio',
-  //     routes: {
-  //       '/': (context) => const SplashPage(),
-  //       '/home': (context) => HomePage(),
-  //       '/test': (context) => MedicalAppointmentMapView(),
-  //       '/dashboard': (context) => const DashboardScreen(),
-  //       '/doctor_dashboard': (context) => const DoctorDashboardScreen(),
-  //       '/login': (context) => LoginPage(),
-  //       '/signup': (context) => SignupPage(),
-  //     },
-  //     initialRoute: '/test',
-  //   );
-  // }
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Convenio',
+      routes: {
+        '/': (context) => const SplashPage(),
+        '/home': (context) => HomePage(),
+        '/test': (context) => MedicalAppointmentMapView(),
+        '/dashboard': (context) => const DashboardScreen(),
+        '/doctor_dashboard': (context) => const DoctorDashboardScreen(),
+        '/login': (context) => LoginPage(),
+        '/signup': (context) => SignupPage(),
+      },
+      initialRoute: '/test',
+    );
+  }
 }
 
 class SplashPage extends StatefulWidget {
@@ -123,7 +117,7 @@ class _SplashPageState extends State<SplashPage> {
     id = customerInfo.getString('id');
     userType = customerInfo.getString('userType');
 
-    Future.delayed(const Duration(seconds: 4), () {
+    Future.delayed(const Duration(seconds: 57), () {
       if (id != null) {
         if (userType == 'Patient') {
           Navigator.pushReplacementNamed(context, '/dashboard');
